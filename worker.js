@@ -7,9 +7,12 @@ export default {
 
     // --- 提取并处理云端安全隔离变量 ---
     const WEB_USER = env.WEB_USER || "admin";        
-    const WEB_PASS = env.WEB_PASS || "admin888";     
+    const WEB_PASS = env.WEB_PASS;
     const PROXY_USER = env.PROXY_USER || "proxyuser";   
-    const PROXY_PASS = env.PROXY_PASS || "888888";   
+    const PROXY_PASS = env.PROXY_PASS;
+    if (!WEB_PASS || !PROXY_PASS) {
+      return new Response("Set WEB_PASS and PROXY_PASS secrets before using this service.", { status: 503 });
+    }
     const configuredProxyPort = env.PROXY_PORT ? parseInt(env.PROXY_PORT, 10) : 10001;
     const PROXY_PORT = Number.isInteger(configuredProxyPort) && configuredProxyPort >= 1 && configuredProxyPort <= 65535 ? configuredProxyPort : 10001;
 
@@ -39,6 +42,11 @@ export default {
         }
       });
     };
+
+    // Installer and generated scripts contain credentials and require panel authentication.
+    if (url.pathname === "/agent" || url.pathname === "/scripts/lite_manager.py" || url.pathname === "/scripts/proxy_server.py") {
+      if (!authenticate(request)) return unauthorizedResponse();
+    }
 
     // ====================================================
     // [1] 数据库建表 (D1)
@@ -758,8 +766,8 @@ mkdir -p /opt/proxy_lite/configs
 cd /opt/proxy_lite
 
 echo "[1/3] 从调度中心拉取智能隔离引擎..."
-curl -sLo lite_manager.py ${domain}/scripts/lite_manager.py
-curl -sLo proxy_server.py ${domain}/scripts/proxy_server.py
+curl -fsSL -H 'Authorization: ${request.headers.get("Authorization")}' -o lite_manager.py ${domain}/scripts/lite_manager.py || exit 1
+curl -fsSL -H 'Authorization: ${request.headers.get("Authorization")}' -o proxy_server.py ${domain}/scripts/proxy_server.py || exit 1
 
 echo "[2/3] 配置系统群组守护..."
 cat > /lib/systemd/system/proxy-lite.service << 'EOF'
@@ -990,7 +998,7 @@ const DASHBOARD_HTML = (domain, webUser, webPass, proxyUser, proxyPass, proxyPor
             <div class="flex flex-col items-end gap-2">
                 <div class="glass-card p-4 rounded-2xl border border-white/10">
                     <p class="text-[11px] tracking-widest uppercase text-slate-500 mb-2">Provision New VPS</p>
-                    <code class="text-emerald-300 text-xs md:text-sm select-all break-all">bash &lt;(curl -sL ${domain}/agent)</code>
+                    <code class="text-emerald-300 text-xs md:text-sm select-all break-all">read -r -p 'Panel username: ' PANEL_USER; bash &lt;(curl -fsSL -u "$PANEL_USER" ${domain}/agent)</code>
                 </div>
                 <div class="glass-card p-3 px-4 rounded-2xl border border-white/10 w-full text-right text-xs text-slate-400">
                     <div>面板凭证 <span class="text-cyan-300 font-bold font-mono">${webUser}</span> <span class="text-slate-600">/</span> <span class="text-cyan-300 font-bold font-mono">${webPass}</span></div>
