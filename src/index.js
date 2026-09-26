@@ -43,10 +43,8 @@ export default {
       });
     };
 
-    // Installer and generated scripts contain credentials and require panel authentication.
-    if (url.pathname === "/agent" || url.pathname === "/scripts/lite_manager.py" || url.pathname === "/scripts/proxy_server.py") {
-      if (!authenticate(request)) return unauthorizedResponse();
-    }
+    // Require authentication for the dashboard, APIs, installer, and generated scripts.
+    if (!authenticate(request)) return unauthorizedResponse();
 
     // ====================================================
     // [1] 数据库建表 (D1)
